@@ -17,7 +17,7 @@ ANALYSES_TABLE = os.getenv(
     "ResumeAnalyses"
 )
 
-RESUME_BUCKET = os.getenv("RESUME_BUCKET", "")
+RESUME_BUCKET = os.getenv("RESUME_BUCKET", "ai-resume-analyzer-897545289521-ap-southeast-2")
 
 BEDROCK_MODEL_ID = os.getenv(
     "BEDROCK_MODEL_ID",
