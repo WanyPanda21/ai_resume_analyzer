@@ -1,0 +1,222 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: AI Resume Analyzer using FastAPI, AWS Lambda, S3, DynamoDB and Bedrock Claude
+
+Parameters:
+
+  BedrockModelId:
+    Type: String
+    Default: apac.anthropic.claude-3-5-sonnet-20241022-v2:0
+    Description: Bedrock Claude model ID
+
+  StageName:
+    Type: String
+    Default: prod
+    Description: API Gateway stage name
+
+
+Resources:
+
+  # --------------------------------
+  # S3 BUCKET - STORE RESUME PDF FILES
+  # --------------------------------
+
+  ResumeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+
+      BucketName: !Sub 'ai-resume-analyzer-${AWS::AccountId}-${AWS::Region}'
+
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+      VersioningConfiguration:
+        Status: Enabled
+
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldResumes
+            Status: Enabled
+            ExpirationInDays: 90
+
+
+  # --------------------------------
+  # DYNAMODB - CANDIDATES TABLE
+  # --------------------------------
+
+  CandidatesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+
+      TableName: CandidatesTable
+
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: candidate_id
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: candidate_id
+          KeyType: HASH
+
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+
+  # --------------------------------
+  # DYNAMODB - ANALYSES TABLE
+  # --------------------------------
+
+  AnalysesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+
+      TableName: AnalysesTable
+
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: analysis_id
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: analysis_id
+          KeyType: HASH
+
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+
+  # --------------------------------
+  # API GATEWAY - HTTP API
+  # --------------------------------
+
+  ResumeHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+
+      StageName: !Ref StageName
+
+
+  # --------------------------------
+  # MAIN FASTAPI LAMBDA FUNCTION
+  # --------------------------------
+
+  ResumeAnalyzerFunction:
+    Type: AWS::Serverless::Function
+
+    Properties:
+
+      FunctionName: !Sub '${AWS::StackName}-resume-analyzer'
+
+      CodeUri: backend/
+
+      Handler: main.handler
+
+      Runtime: python3.13
+
+      Timeout: 60
+
+      MemorySize: 1024
+
+      Architectures:
+        - x86_64
+
+      Environment:
+        Variables:
+
+          CANDIDATES_TABLE: !Ref CandidatesTable
+
+          ANALYSES_TABLE: !Ref AnalysesTable
+
+          RESUME_BUCKET: !Ref ResumeBucket
+
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+
+          MAX_PDF_BYTES: '5242880'
+
+
+      # --------------------------------
+      # IAM PERMISSIONS
+      # --------------------------------
+
+      Policies:
+
+        # S3 upload, download and delete permissions
+        - S3CrudPolicy:
+            BucketName: !Ref ResumeBucket
+
+        # Candidates DynamoDB permissions
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CandidatesTable
+
+        # Analyses DynamoDB permissions
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnalysesTable
+
+        # AWS Bedrock Claude permissions
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource: '*'
+
+
+      # --------------------------------
+      # API GATEWAY EVENTS
+      # --------------------------------
+
+      Events:
+
+        ApiRoot:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ResumeHttpApi
+            Path: /
+            Method: ANY
+
+        ApiProxy:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ResumeHttpApi
+            Path: /{proxy+}
+            Method: ANY
+
+
+# --------------------------------
+# OUTPUTS
+# --------------------------------
+
+Outputs:
+
+  ApiBaseUrl:
+    Description: Resume Analyzer API Gateway URL
+    Value: !Sub 'https://${ResumeHttpApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/'
+
+  ResumeBucketName:
+    Description: S3 bucket storing uploaded resumes
+    Value: !Ref ResumeBucket
+
+  CandidatesTableName:
+    Description: Candidates DynamoDB table
+    Value: !Ref CandidatesTable
+
+  AnalysesTableName:
+    Description: Resume analysis DynamoDB table
+    Value: !Ref AnalysesTable
+
+  LambdaFunctionName:
+    Description: Resume Analyzer Lambda function name
+    Value: !Ref ResumeAnalyzerFunction
