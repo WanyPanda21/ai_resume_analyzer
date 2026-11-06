@@ -42,6 +42,8 @@ app = FastAPI(
 @app.get("/health")
 def health():
 
+    logger.info("Retriving Helth check of resume analyzer")
+
     return {
         "status": "healthy"
     }

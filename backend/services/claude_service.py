@@ -1,19 +1,14 @@
-# This is the AI service.
 
-# It sends the resume text and Job Description to Claude using Amazon Bedrock.
+# This is the AI service.
+# It sends resume text and Job Description directly to Anthropic Claude API.
 
 import json
 import re
 
-import boto3
+from anthropic import Anthropic, APIError
 
-from backend.config import AWS_REGION, BEDROCK_MODEL_ID
-
-
-bedrock = boto3.client(
-    "bedrock-runtime",
-    region_name=AWS_REGION
-)
+from backend.config import CLAUDE_MODEL
+from backend.services.secrets_service import get_claude_api_key
 
 
 SYSTEM_PROMPT = """
@@ -74,6 +69,14 @@ def analyze_with_claude(
     job_description: str
 ) -> dict:
 
+    # Retrieve API key from AWS Secrets Manager.
+    api_key = get_claude_api_key()
+
+    client = Anthropic(
+        api_key=api_key,
+        timeout=45.0
+    )
+
     user_prompt = f"""
 Compare the following resume with the job description.
 
@@ -88,41 +91,45 @@ Compare the following resume with the job description.
 Return the JSON object described in the system prompt.
 """
 
-    response = bedrock.converse(
+    try:
 
-        modelId=BEDROCK_MODEL_ID,
+        response = client.messages.create(
 
-        system=[
-            {
-                "text": SYSTEM_PROMPT
-            }
-        ],
+            model=CLAUDE_MODEL,
 
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "text": user_prompt
-                    }
-                ]
-            }
-        ],
+            max_tokens=3500,
 
-        inferenceConfig={
-            "temperature": 0.1,
-            "maxTokens": 3500
-        }
-    )
+            temperature=0.1,
 
-    response_text = response[
-        "output"
-    ][
-        "message"
-    ][
-        "content"
-    ][0]["text"]
+            system=SYSTEM_PROMPT,
 
+            messages=[
+                {
+                    "role": "user",
+                    "content": user_prompt
+                }
+            ]
+        )
+
+        response_text = "\n".join(
+            block.text
+            for block in response.content
+            if block.type == "text"
+        )
+
+    except APIError as exc:
+
+        raise RuntimeError(
+            f"Anthropic Claude API error: {exc}"
+        ) from exc
+
+    if not response_text.strip():
+
+        raise RuntimeError(
+            "Claude returned an empty response."
+        )
+
+    # Remove Markdown JSON code fences.
     response_text = response_text.strip()
 
     response_text = re.sub(
@@ -130,8 +137,9 @@ Return the JSON object described in the system prompt.
         "",
         response_text,
         flags=re.IGNORECASE
-    )
+    ).strip()
 
+    # Convert response into Python dictionary.
     try:
 
         data = json.loads(response_text)
@@ -142,6 +150,7 @@ Return the JSON object described in the system prompt.
             "Claude returned invalid JSON."
         ) from exc
 
+    # Validate required fields.
     required_fields = [
         "candidate",
         "category_scores",
@@ -161,6 +170,13 @@ Return the JSON object described in the system prompt.
                 f"Missing field in Claude response: {field}"
             )
 
+    if not isinstance(data["candidate"], dict):
+        raise RuntimeError("Invalid candidate information.")
+
+    if not isinstance(data["category_scores"], dict):
+        raise RuntimeError("Invalid category scores.")
+
+    # Validate category scores.
     score_keys = [
         "technical_skills",
         "relevant_experience",

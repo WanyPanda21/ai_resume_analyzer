@@ -2,14 +2,19 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 
-Description: AI Resume Analyzer using FastAPI, AWS Lambda, S3, DynamoDB and Bedrock Claude
+Description: AI Resume Analyzer using FastAPI, AWS Lambda, S3, DynamoDB and Anthropic Claude API
 
 Parameters:
 
-  BedrockModelId:
+  AnthropicSecretName:
     Type: String
-    Default: apac.anthropic.claude-3-5-sonnet-20241022-v2:0
-    Description: Bedrock Claude model ID
+    Default: ai-resume-analyzer/anthropic-api-key
+    Description: Secrets Manager name containing the Claude API key
+
+  ClaudeModel:
+    Type: String
+    Default: claude-sonnet-5
+    Description: Anthropic Claude model name
 
   StageName:
     Type: String
@@ -26,7 +31,6 @@ Resources:
   ResumeBucket:
     Type: AWS::S3::Bucket
     Properties:
-
       BucketName: !Sub 'ai-resume-analyzer-${AWS::AccountId}-${AWS::Region}'
 
       PublicAccessBlockConfiguration:
@@ -57,9 +61,7 @@ Resources:
   CandidatesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-
       TableName: CandidatesTable
-
       BillingMode: PAY_PER_REQUEST
 
       AttributeDefinitions:
@@ -81,9 +83,7 @@ Resources:
   AnalysesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-
       TableName: AnalysesTable
-
       BillingMode: PAY_PER_REQUEST
 
       AttributeDefinitions:
@@ -105,7 +105,6 @@ Resources:
   ResumeHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
-
       StageName: !Ref StageName
 
 
@@ -136,13 +135,17 @@ Resources:
       Environment:
         Variables:
 
+          AWS_REGION: !Ref AWS::Region
+
           CANDIDATES_TABLE: !Ref CandidatesTable
 
           ANALYSES_TABLE: !Ref AnalysesTable
 
           RESUME_BUCKET: !Ref ResumeBucket
 
-          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          ANTHROPIC_SECRET_NAME: !Ref AnthropicSecretName
+
+          CLAUDE_MODEL: !Ref ClaudeModel
 
           MAX_PDF_BYTES: '5242880'
 
@@ -165,13 +168,14 @@ Resources:
         - DynamoDBCrudPolicy:
             TableName: !Ref AnalysesTable
 
-        # AWS Bedrock Claude permissions
+        # Retrieve Claude API key from Secrets Manager
         - Statement:
             - Effect: Allow
               Action:
-                - bedrock:InvokeModel
-                - bedrock:InvokeModelWithResponseStream
-              Resource: '*'
+                - secretsmanager:GetSecretValue
+              Resource: !Sub
+                - 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SecretName}-*'
+                - SecretName: !Ref AnthropicSecretName
 
 
       # --------------------------------
@@ -214,9 +218,13 @@ Outputs:
     Value: !Ref CandidatesTable
 
   AnalysesTableName:
-    Description: Resume analysis DynamoDB table
+    Description: Analyses DynamoDB table
     Value: !Ref AnalysesTable
 
   LambdaFunctionName:
     Description: Resume Analyzer Lambda function name
     Value: !Ref ResumeAnalyzerFunction
+
+  ClaudeSecretName:
+    Description: Secrets Manager secret name
+    Value: !Ref AnthropicSecretName
