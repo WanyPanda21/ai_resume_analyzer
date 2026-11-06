@@ -135,7 +135,6 @@ Resources:
       Environment:
         Variables:
 
-          AWS_REGION: !Ref AWS::Region
 
           CANDIDATES_TABLE: !Ref CandidatesTable
 
