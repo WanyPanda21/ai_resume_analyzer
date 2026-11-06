@@ -1,7 +1,8 @@
 
-fastapi==0.115.12
-mangum==0.19.0
-boto3>=1.37.0
-pymupdf==1.25.5
-python-multipart==0.0.20
-pydantic==2.10.6
+fastapi
+uvicorn
+mangum
+boto3
+anthropic
+python-multipart
+pypdf
