@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from uuid import uuid4
 from decimal import Decimal
 import logging
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
 
 from fastapi import (
     FastAPI,
@@ -465,7 +467,13 @@ def remove_resume(candidate_id: str):
 handler = Mangum(app)
 # Serve frontend files through FastAPI.
 
-FRONTEND_DIR = Path(__file__).parent / "frontend"
+# Frontend folder is at the project root
+FRONTEND_DIR = BASE_DIR / "frontend"
+
+if not FRONTEND_DIR.is_dir():
+    raise RuntimeError(
+        f"Frontend directory not found: {FRONTEND_DIR}"
+    )
 
 app.mount(
     "/",
@@ -475,3 +483,6 @@ app.mount(
     ),
     name="frontend"
 )
+
+# AWS Lambda handler (keep this AFTER mounting the frontend)
+handler = Mangum(app)
