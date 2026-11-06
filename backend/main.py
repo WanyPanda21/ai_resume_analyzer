@@ -1,7 +1,8 @@
 
 # This is the most important file.
 # It connects PDF extraction, Claude AI, scoring, S3 and DynamoDB.
-
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from datetime import datetime, timezone
 from uuid import uuid4
 from decimal import Decimal
@@ -462,3 +463,15 @@ def remove_resume(candidate_id: str):
 
 
 handler = Mangum(app)
+# Serve frontend files through FastAPI.
+
+FRONTEND_DIR = Path(__file__).parent / "frontend"
+
+app.mount(
+    "/",
+    StaticFiles(
+        directory=str(FRONTEND_DIR),
+        html=True
+    ),
+    name="frontend"
+)

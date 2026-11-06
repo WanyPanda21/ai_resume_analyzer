@@ -1,0 +1,327 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>AI Resume Analyzer</title>
+
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-icon">AI</div>
+            <div>
+                <h2>Resume Analyzer</h2>
+                <span>Powered by Claude AI</span>
+            </div>
+        </div>
+
+        <div class="header-status">
+            <span class="status-dot"></span>
+            AI Analysis Platform
+        </div>
+    </header>
+
+    <main class="container">
+
+        <!-- Dashboard heading -->
+
+        <section class="welcome-section">
+            <div>
+                <p class="eyebrow">RESUME INTELLIGENCE</p>
+                <h1>Analyze your resume</h1>
+                <p class="subtitle">
+                    Discover how well your resume matches a job description
+                    and get AI-powered recommendations.
+                </p>
+            </div>
+        </section>
+
+        <!-- Dashboard statistics -->
+
+        <section class="stats-grid">
+
+            <div class="stat-card">
+                <div class="stat-icon purple">📄</div>
+                <div>
+                    <p>Total Resumes</p>
+                    <h2 id="total-resumes">0</h2>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon green">✓</div>
+                <div>
+                    <p>Analyses Completed</p>
+                    <h2 id="total-analyses">0</h2>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon orange">★</div>
+                <div>
+                    <p>Latest Match Score</p>
+                    <h2 id="latest-score">--</h2>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Resume analysis form -->
+
+        <section class="main-card">
+
+            <div class="section-heading">
+                <div>
+                    <h2>New Resume Analysis</h2>
+                    <p>Upload your resume and enter the target job description.</p>
+                </div>
+                <span class="step-label">NEW ANALYSIS</span>
+            </div>
+
+            <form id="analysis-form">
+
+                <!-- Resume upload -->
+
+                <div class="form-group">
+
+                    <label for="resume">
+                        Upload Resume <span class="required">*</span>
+                    </label>
+
+                    <label for="resume" class="upload-area" id="upload-area">
+
+                        <div class="upload-icon">📄</div>
+
+                        <h3 id="upload-title">
+                            Click to upload your resume
+                        </h3>
+
+                        <p id="upload-description">
+                            PDF files only · Maximum size 5 MB
+                        </p>
+
+                        <input
+                            type="file"
+                            id="resume"
+                            accept=".pdf,application/pdf"
+                            hidden
+                        >
+
+                    </label>
+
+                </div>
+
+                <!-- Job description -->
+
+                <div class="form-group">
+
+                    <label for="job-description">
+                        Job Description <span class="required">*</span>
+                    </label>
+
+                    <textarea
+                        id="job-description"
+                        placeholder="Paste the complete job description here...
+
+Example:
+We are looking for a Python Backend Developer with experience in FastAPI, Django, REST APIs, AWS Lambda, DynamoDB..."
+                        rows="9"
+                        required
+                        minlength="30"
+                    ></textarea>
+
+                    <div class="field-footer">
+                        <span>Minimum 30 characters</span>
+                        <span id="char-count">0 characters</span>
+                    </div>
+
+                </div>
+
+                <!-- Submit -->
+
+                <button type="submit" id="analyze-btn" class="primary-btn">
+
+                    <span id="button-text">✦ Analyze My Resume</span>
+
+                    <span id="button-loader" class="loader hidden"></span>
+
+                </button>
+
+                <p id="error-message" class="error-message hidden"></p>
+
+            </form>
+
+        </section>
+
+        <!-- Analysis results -->
+
+        <section id="results-section" class="results-section hidden">
+
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">ANALYSIS REPORT</p>
+                    <h2>Resume Analysis Results</h2>
+                    <p class="subtitle">Your AI-generated resume evaluation.</p>
+                </div>
+            </div>
+
+            <!-- Match score -->
+
+            <div class="result-grid">
+
+                <div class="result-card score-card">
+
+                    <p class="card-label">Overall Resume Match</p>
+
+                    <div class="score-circle" id="score-circle">
+                        <div class="score-content">
+                            <h2 id="match-percentage">0%</h2>
+                            <span>Match Score</span>
+                        </div>
+                    </div>
+
+                    <p id="candidate-name" class="candidate-name">
+                        Candidate
+                    </p>
+
+                    <p id="experience-match" class="experience-match"></p>
+
+                </div>
+
+                <!-- Summary -->
+
+                <div class="result-card summary-card">
+
+                    <h3>AI Summary</h3>
+
+                    <p id="summary"></p>
+
+                </div>
+
+            </div>
+
+            <!-- Category scores -->
+
+            <div class="result-card">
+
+                <h3>Category-wise Scores</h3>
+
+                <div id="category-scores" class="category-list"></div>
+
+            </div>
+
+            <!-- Skills -->
+
+            <div class="result-grid">
+
+                <div class="result-card">
+
+                    <h3>✓ Matched Skills</h3>
+
+                    <div id="matched-skills" class="tag-list"></div>
+
+                </div>
+
+                <div class="result-card">
+
+                    <h3>! Missing Skills</h3>
+
+                    <div id="missing-skills" class="tag-list"></div>
+
+                </div>
+
+            </div>
+
+            <!-- Strengths and improvements -->
+
+            <div class="result-grid">
+
+                <div class="result-card">
+
+                    <h3>Key Strengths</h3>
+
+                    <ul id="strengths" class="result-list"></ul>
+
+                </div>
+
+                <div class="result-card">
+
+                    <h3>Improvement Suggestions</h3>
+
+                    <ul id="suggestions" class="result-list"></ul>
+
+                </div>
+
+            </div>
+
+            <div class="report-footer">
+                <span id="analysis-id"></span>
+
+                <button id="new-analysis-btn" class="secondary-btn">
+                    + New Analysis
+                </button>
+            </div>
+
+        </section>
+
+        <!-- Candidate history -->
+
+        <section class="history-section">
+
+            <div class="section-heading">
+                <div>
+                    <h2>Recent Candidates</h2>
+                    <p>Previously analyzed resumes.</p>
+                </div>
+
+                <button id="refresh-btn" class="secondary-btn">
+                    ↻ Refresh
+                </button>
+            </div>
+
+            <div class="table-wrapper">
+
+                <table>
+
+                    <thead>
+                        <tr>
+                            <th>Candidate</th>
+                            <th>Email</th>
+                            <th>Experience</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="candidate-table">
+
+                        <tr>
+                            <td colspan="4" class="empty-state">
+                                Loading candidates...
+                            </td>
+                        </tr>
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <footer>
+        AI Resume Analyzer · FastAPI · AWS · Claude AI
+    </footer>
+
+    <script src="/js/app.js"></script>
+
+</body>
+</html>
