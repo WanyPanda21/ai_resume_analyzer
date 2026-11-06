@@ -471,16 +471,11 @@ handler = Mangum(app)
 FRONTEND_DIR = BASE_DIR / "frontend"
 
 if not FRONTEND_DIR.is_dir():
-    raise RuntimeError(
-        f"Frontend directory not found: {FRONTEND_DIR}"
-    )
+    raise RuntimeError(...)
 
 app.mount(
     "/",
-    StaticFiles(
-        directory=str(FRONTEND_DIR),
-        html=True
-    ),
+    StaticFiles(...),
     name="frontend"
 )
 

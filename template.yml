@@ -5,128 +5,110 @@ Transform: AWS::Serverless-2016-10-31
 Description: AI Resume Analyzer using FastAPI, AWS Lambda, S3, DynamoDB and Anthropic Claude API
 
 Parameters:
-
   AnthropicSecretName:
     Type: String
     Default: ai-resume-analyzer/anthropic-api-key
-    Description: Secrets Manager name containing the Claude API key
 
   ClaudeModel:
     Type: String
     Default: claude-sonnet-5
-    Description: Anthropic Claude model name
 
   StageName:
     Type: String
     Default: prod
-    Description: API Gateway stage name
-
 
 Resources:
 
-  # --------------------------------
-  # S3 BUCKET - STORE RESUME PDF FILES
-  # --------------------------------
-
+  # S3 - Resume storage
   ResumeBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub 'ai-resume-analyzer-${AWS::AccountId}-${AWS::Region}'
-
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
-
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
-
       VersioningConfiguration:
         Status: Enabled
-
       LifecycleConfiguration:
         Rules:
           - Id: DeleteOldResumes
             Status: Enabled
             ExpirationInDays: 90
 
-
-  # --------------------------------
-  # DYNAMODB - CANDIDATES TABLE
-  # --------------------------------
-
+  # DynamoDB - Candidates
   CandidatesTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: CandidatesTable
       BillingMode: PAY_PER_REQUEST
-
       AttributeDefinitions:
         - AttributeName: candidate_id
           AttributeType: S
-
       KeySchema:
         - AttributeName: candidate_id
           KeyType: HASH
-
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
-
-  # --------------------------------
-  # DYNAMODB - ANALYSES TABLE
-  # --------------------------------
-
+  # DynamoDB - Analyses
   AnalysesTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: AnalysesTable
       BillingMode: PAY_PER_REQUEST
-
       AttributeDefinitions:
         - AttributeName: analysis_id
           AttributeType: S
-
       KeySchema:
         - AttributeName: analysis_id
           KeyType: HASH
-
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
-
-  # --------------------------------
-  # API GATEWAY - HTTP API
-  # --------------------------------
-
+  # API Gateway - HTTP API
   ResumeHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: !Ref StageName
 
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'
+        AllowMethods:
+          - GET
+          - POST
+          - DELETE
+          - OPTIONS
+        AllowHeaders:
+          - content-type
+          - authorization
+        MaxAge: 600
 
-  # --------------------------------
-  # MAIN FASTAPI LAMBDA FUNCTION
-  # --------------------------------
-
+  # Main FastAPI Lambda
   ResumeAnalyzerFunction:
     Type: AWS::Serverless::Function
 
-    Properties:
+    Metadata:
+      BuildMethod: python3.13
+      BuildProperties:
+        RequirementsFile: backend/requirements.txt
 
+    Properties:
       FunctionName: !Sub '${AWS::StackName}-resume-analyzer'
 
-      CodeUri: backend/
+      # Include the project root so backend.config and
+      # backend.services imports resolve inside Lambda.
+      CodeUri: ./
 
-      Handler: main.handler
-
+      Handler: backend.main.handler
       Runtime: python3.13
-
       Timeout: 60
-
       MemorySize: 1024
 
       Architectures:
@@ -134,40 +116,23 @@ Resources:
 
       Environment:
         Variables:
-
-
           CANDIDATES_TABLE: !Ref CandidatesTable
-
           ANALYSES_TABLE: !Ref AnalysesTable
-
           RESUME_BUCKET: !Ref ResumeBucket
-
           ANTHROPIC_SECRET_NAME: !Ref AnthropicSecretName
-
           CLAUDE_MODEL: !Ref ClaudeModel
-
           MAX_PDF_BYTES: '5242880'
 
-
-      # --------------------------------
-      # IAM PERMISSIONS
-      # --------------------------------
-
       Policies:
-
-        # S3 upload, download and delete permissions
         - S3CrudPolicy:
             BucketName: !Ref ResumeBucket
 
-        # Candidates DynamoDB permissions
         - DynamoDBCrudPolicy:
             TableName: !Ref CandidatesTable
 
-        # Analyses DynamoDB permissions
         - DynamoDBCrudPolicy:
             TableName: !Ref AnalysesTable
 
-        # Retrieve Claude API key from Secrets Manager
         - Statement:
             - Effect: Allow
               Action:
@@ -176,54 +141,68 @@ Resources:
                 - 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SecretName}-*'
                 - SecretName: !Ref AnthropicSecretName
 
-
-      # --------------------------------
-      # API GATEWAY EVENTS
-      # --------------------------------
-
+      # Explicit API Gateway routes
       Events:
 
-        ApiRoot:
+        HealthGet:
           Type: HttpApi
           Properties:
             ApiId: !Ref ResumeHttpApi
-            Path: /
-            Method: ANY
+            Path: /health
+            Method: GET
 
-        ApiProxy:
+        AnalyzeResumePost:
           Type: HttpApi
           Properties:
             ApiId: !Ref ResumeHttpApi
-            Path: /{proxy+}
-            Method: ANY
+            Path: /resumes/analyze
+            Method: POST
 
+        ListResumesGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ResumeHttpApi
+            Path: /resumes
+            Method: GET
 
-# --------------------------------
-# OUTPUTS
-# --------------------------------
+        GetResumeGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ResumeHttpApi
+            Path: /resumes/{candidate_id}
+            Method: GET
+
+        DeleteResumeDelete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ResumeHttpApi
+            Path: /resumes/{candidate_id}
+            Method: DELETE
+
+        GetAnalysisGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ResumeHttpApi
+            Path: /analyses/{analysis_id}
+            Method: GET
 
 Outputs:
 
   ApiBaseUrl:
     Description: Resume Analyzer API Gateway URL
-    Value: !Sub 'https://${ResumeHttpApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/'
+    Value: !Sub 'https://${ResumeHttpApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}'
 
   ResumeBucketName:
-    Description: S3 bucket storing uploaded resumes
     Value: !Ref ResumeBucket
 
   CandidatesTableName:
-    Description: Candidates DynamoDB table
     Value: !Ref CandidatesTable
 
   AnalysesTableName:
-    Description: Analyses DynamoDB table
     Value: !Ref AnalysesTable
 
   LambdaFunctionName:
-    Description: Resume Analyzer Lambda function name
     Value: !Ref ResumeAnalyzerFunction
 
   ClaudeSecretName:
-    Description: Secrets Manager secret name
     Value: !Ref AnthropicSecretName

@@ -6,7 +6,7 @@
 // Existing FastAPI backend.
 // Frontend and backend use the same domain.
 
-const API_BASE_URL = "";
+const API_BASE_URL = "https://rbnki9l2f6.execute-api.ap-southeast-2.amazonaws.com/prod";
 
 // Get HTML elements.
 
@@ -222,7 +222,7 @@ analysisForm.addEventListener("submit", async function (event) {
         // Call existing FastAPI endpoint.
 
         const response = await fetch(
-            `${API_BASE_URL}/resumes/analyze`,
+            `${https://rbnki9l2f6.execute-api.ap-southeast-2.amazonaws.com/prod}/resumes/analyze`,
             {
                 method: "POST",
                 body: formData
@@ -510,7 +510,7 @@ async function loadCandidates() {
     try {
 
         const response = await fetch(
-            `${API_BASE_URL}/resumes?limit=50`
+            `${https://rbnki9l2f6.execute-api.ap-southeast-2.amazonaws.com/prod}/resumes?limit=50`
         );
 
         if (!response.ok) {
@@ -617,7 +617,35 @@ async function loadCandidates() {
     }
 
 }
+// =====================================
+// to check whether API Gateway and Lambda are connected:
+// =====================================
 
+
+async function checkBackendHealth() {
+
+    try {
+
+        const response = await fetch(
+            `${API_BASE_URL}/health`,
+            {
+                method: "GET"
+            }
+        );
+
+        const result = await response.json();
+
+        console.log("AWS Backend Health:", result);
+
+        return response.ok;
+
+    } catch (error) {
+
+        console.error("AWS Backend Error:", error);
+
+        return false;
+    }
+}
 
 // =====================================
 // REFRESH CANDIDATE HISTORY
