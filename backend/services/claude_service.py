@@ -97,9 +97,7 @@ Return the JSON object described in the system prompt.
 
             model=CLAUDE_MODEL,
 
-            max_tokens=3500,
-
-            temperature=0.1,
+            max_tokens=4000,
 
             system=SYSTEM_PROMPT,
 
