@@ -1,7 +1,12 @@
-# This is the most important file. It connects PDF extraction, Claude AI, scoring, S3 and DynamoDB.
+
+# This is the most important file.
+# It connects PDF extraction, Claude AI, scoring, S3 and DynamoDB.
+
 from datetime import datetime, timezone
 from uuid import uuid4
+from decimal import Decimal
 import logging
+
 from fastapi import (
     FastAPI,
     File,
@@ -19,6 +24,7 @@ from backend.services.pdf_service import extract_text_from_pdf
 from backend.services.s3_service import upload_pdf, delete_pdf
 from backend.services.claude_service import analyze_with_claude
 from backend.services.matching_service import calculate_match_percentage
+
 from backend.repositories.dynamodb_repository import (
     save_candidate,
     save_analysis,
@@ -33,16 +39,49 @@ logging.basicConfig(level=logging.INFO)
 
 logger = logging.getLogger(__name__)
 
+
 app = FastAPI(
     title="AI Resume Analyzer API",
     version="1.0.0"
 )
 
 
+# Convert Python float values into Decimal.
+# DynamoDB does not support Python float values.
+# This function also handles nested dictionaries and lists.
+
+def convert_floats_to_decimal(data):
+
+    if isinstance(data, float):
+
+        return Decimal(str(data))
+
+    if isinstance(data, dict):
+
+        return {
+            key: convert_floats_to_decimal(value)
+            for key, value in data.items()
+        }
+
+    if isinstance(data, list):
+
+        return [
+            convert_floats_to_decimal(item)
+            for item in data
+        ]
+
+    if isinstance(data, tuple):
+
+        return tuple(
+            convert_floats_to_decimal(item)
+            for item in data
+        )
+
+    return data
+
+
 @app.get("/health")
 def health():
-
-    logger.info("Retriving Helth check of resume analyzer")
 
     return {
         "status": "healthy"
@@ -243,15 +282,17 @@ async def upload_and_analyze_resume(
         }
 
         # STEP 7: Save candidate in DynamoDB
+        # Convert all float values to Decimal before saving.
 
         save_candidate(
-            candidate_item
+            convert_floats_to_decimal(candidate_item)
         )
 
         # STEP 8: Save analysis in DynamoDB
+        # Convert all float values to Decimal before saving.
 
         save_analysis(
-            analysis_item
+            convert_floats_to_decimal(analysis_item)
         )
 
         # STEP 9: Return response
